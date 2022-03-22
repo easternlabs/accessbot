@@ -100,7 +100,7 @@ BOT_IDENTITY = get_bot_identity()
 
 ACCESS_CONTROLS = get_access_controls()
 
-BOT_PREFIX = ''
+BOT_PREFIX = os.getenv("SDM_BOT_PREFIX")
 HIDE_RESTRICTED_COMMANDS = True
 HIDE_RESTRICTED_ACCESS = True
 

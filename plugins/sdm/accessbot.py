@@ -165,7 +165,7 @@ class AccessBot(BotPlugin):
     def check_configuration(self, configuration):
         pass
 
-    @re_botcmd(pattern=ACCESS_REGEX, flags=re.IGNORECASE, prefixed=False, re_cmd_name_help="access to <resource-name> [--reason text] [--duration duration]")
+    @re_botcmd(pattern=ACCESS_REGEX, flags=re.IGNORECASE, prefixed=True, re_cmd_name_help="access to resource-name [--reason text] [--duration duration]")
     def access_resource(self, message, match):
         """
         Grant access to <resource-name> (using the requester's email address)
@@ -189,7 +189,7 @@ class AccessBot(BotPlugin):
         yield from self.get_resource_grant_helper().request_access(message, resource_name, flags=flags)
         self.__metrics_helper.reset_consecutive_errors()
 
-    @re_botcmd(pattern=ASSIGN_ROLE_REGEX, flags=re.IGNORECASE, prefixed=False, re_cmd_name_help="access to role <role-name>")
+    @re_botcmd(pattern=ASSIGN_ROLE_REGEX, flags=re.IGNORECASE, prefixed=True, re_cmd_name_help="access to role role-name")
     def assign_role(self, message, match):
         """
         Grant access to all resources in <role-name> (using the requester's email address)
@@ -201,7 +201,7 @@ class AccessBot(BotPlugin):
         yield from self.get_role_grant_helper().request_access(message, role_name)
         self.__metrics_helper.reset_consecutive_errors()
 
-    @re_botcmd(pattern=APPROVE_REGEX, flags=re.IGNORECASE, prefixed=False, hidden=True)
+    @re_botcmd(pattern=APPROVE_REGEX, flags=re.IGNORECASE, prefixed=True, hidden=True)
     def approve(self, message, match):
         """
         Approve a grant (resource or role)
@@ -212,7 +212,7 @@ class AccessBot(BotPlugin):
         yield from self.get_approve_helper().execute(approver, access_request_id)
         self.__metrics_helper.reset_consecutive_errors()
 
-    @re_botcmd(pattern=DENY_REGEX, flags=re.IGNORECASE, prefixed=False, hidden=True)
+    @re_botcmd(pattern=DENY_REGEX, flags=re.IGNORECASE, prefixed=True, hidden=True)
     def deny(self, message, match):
         """
         Deny a grant request (resource or role)
@@ -225,7 +225,7 @@ class AccessBot(BotPlugin):
         self.__metrics_helper.reset_consecutive_errors()
 
     #pylint: disable=unused-argument
-    @re_botcmd(pattern=SHOW_RESOURCES_REGEX, flags=re.IGNORECASE, prefixed=False, re_cmd_name_help="show available resources [--filter expression]")
+    @re_botcmd(pattern=SHOW_RESOURCES_REGEX, flags=re.IGNORECASE, prefixed=True, re_cmd_name_help="show available resources [--filter expression]")
     def show_resources(self, message, match):
         """
         Show all available resources
@@ -238,7 +238,7 @@ class AccessBot(BotPlugin):
         self.__metrics_helper.reset_consecutive_errors()
 
     #pylint: disable=unused-argument
-    @re_botcmd(pattern=SHOW_ROLES_REGEX, flags=re.IGNORECASE, prefixed=False, re_cmd_name_help="show available roles")
+    @re_botcmd(pattern=SHOW_ROLES_REGEX, flags=re.IGNORECASE, prefixed=True, re_cmd_name_help="show available roles")
     def show_roles(self, message, match):
         """
         Show all available roles
@@ -256,7 +256,7 @@ class AccessBot(BotPlugin):
         """
         return self.get_whoami_helper().execute(message)
 
-    @re_botcmd(pattern=r'.+', flags=re.IGNORECASE, prefixed=False, hidden=True)
+    @re_botcmd(pattern=r'.+', flags=re.IGNORECASE, prefixed=True, hidden=True)
     def match_alias(self, message, _):
         yield from self.get_command_alias_helper().execute(message)
 
