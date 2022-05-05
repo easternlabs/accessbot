@@ -9,7 +9,8 @@ import config_template
 from lib import ApproveHelper, create_sdm_service, MSTeamsPlatform, PollerHelper, \
     ShowResourcesHelper, ShowRolesHelper, SlackBoltPlatform, SlackRTMPlatform, \
     ResourceGrantHelper, RoleGrantHelper, DenyHelper, CommandAliasHelper, ArgumentsHelper, \
-    GrantRequestHelper, WhoamiHelper, MetricsHelper, HealthCheckHelper
+    GrantRequestHelper, WhoamiHelper, MetricsHelper, HealthCheckHelper, JiraHelper
+    JiraHelper
 from lib.util import normalize_utf8
 from grant_request_type import GrantRequestType
 
@@ -186,7 +187,8 @@ class AccessBot(BotPlugin):
         except Exception as e:
             yield str(e)
             return
-        yield from self.get_resource_grant_helper().request_access(message, resource_name, flags=flags)
+        # yield from self.get_resource_grant_helper().request_access(message, resource_name, flags=flags)
+        yield from self.get_jira_helper().request_access(message, resource_name, flags=flags)
         self.__metrics_helper.reset_consecutive_errors()
 
     @re_botcmd(pattern=ASSIGN_ROLE_REGEX, flags=re.IGNORECASE, prefixed=True, re_cmd_name_help="access to role role-name")
@@ -314,6 +316,9 @@ class AccessBot(BotPlugin):
 
     def get_metrics_helper(self):
         return self.__metrics_helper
+
+    def get_jira_helper(self):
+        return JiraHelper(self)
 
     def get_admin_ids(self):
         return self._platform.get_admin_ids()

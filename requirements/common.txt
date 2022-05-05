@@ -9,3 +9,4 @@ fuzzywuzzy
 python-levenshtein-wheels
 memoization
 prometheus_client
+jira~=3.2.0
