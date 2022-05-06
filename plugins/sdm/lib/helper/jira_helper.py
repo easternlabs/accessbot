@@ -72,7 +72,7 @@ class JiraHelper(ResourceGrantHelper):
         rv = False
 
         try:
-            m = search(r'ENG-\d+', flags["reason"])
+            m = search(r'(DCR-\d+|ENG-\d+|ISD-\d+)', flags["reason"])
             issue_id = m.group(0) if m else None
             issue = self.auth_jira.issue(issue_id)
             td = convert_duration_flag_to_timedelta(flags["duration"])
@@ -81,6 +81,8 @@ class JiraHelper(ResourceGrantHelper):
                 email = self.__get_email(message)
                 time_str = get_formatted_duration_string(td)
 
+                issue.fields.labels.append("SDMBOT")
+                issue.update(fields={"labels": issue.fields.labels})
                 self.auth_jira.add_comment(issue_id, f"Strongdmbot auto-approved a grant for {email} access to {searched_name} for {time_str}")
                 rv = True
             else:
