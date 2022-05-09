@@ -1,14 +1,16 @@
 import shortuuid
-from re import search
+from re import escape, search
 from os import getenv
 from .resource_grant_helper import ResourceGrantHelper
 from grant_request_type import GrantRequestType
-from jira.client import JIRA
-from jira.exceptions import JIRAError
+from atlassian import Jira
+from requests import HTTPError
+
 from ..exceptions import NotFoundException, PermissionDeniedException
 from ..util import fuzzy_match, get_formatted_duration_string, convert_duration_flag_to_timedelta
 
 eight_hours = 8 * 60
+
 
 class JiraHelper(ResourceGrantHelper):
     def __init__(self, bot):
@@ -22,10 +24,8 @@ class JiraHelper(ResourceGrantHelper):
         self.username = getenv("JIRA_USERNAME", "")
         self.api_token = getenv("JIRA_API_TOKEN", "")
 
-        self.auth_jira = JIRA(self.ngt_jira, basic_auth=(self.username, self.api_token))
-
     def request_access(self, message, searched_name, flags: dict = {}):
-        if not self.__validate_issue(message, searched_name, flags):
+        if not self.__validate_issue(flags):
             yield from super().request_access(message, searched_name, flags)
         else:
             execution_id = shortuuid.ShortUUID().random(length=6)
@@ -36,6 +36,7 @@ class JiraHelper(ResourceGrantHelper):
                 sdm_object = self.get_item_by_name(searched_name, execution_id)
                 sdm_account = self.__get_account(message)
                 self.check_permission(sdm_object, sdm_account, searched_name)
+                yield from self.__record_and_notify(message, searched_name, sdm_object, flags)
                 request_id = self.generate_grant_request_id()
 
                 self.__bot.enter_grant_request(request_id, message, sdm_object, sdm_account, self.__grant_type,
@@ -56,6 +57,9 @@ class JiraHelper(ResourceGrantHelper):
     def __get_email(self, message):
         return self.__bot.get_sender_email(message.frm)
 
+    def __get_nick(self, message):
+        return self.__bot.get_sender_nick(message.frm)
+
     def __get_account(self, message):
         sender_email = self.__get_email(message)
         return self.__sdm_service.get_account_by_email(sender_email)
@@ -63,34 +67,96 @@ class JiraHelper(ResourceGrantHelper):
     def __try_fuzzy_matching(self, execution_id, term_list, role_name):
         similar_result = fuzzy_match(term_list, role_name)
         if not similar_result:
-            self.__bot.log.error("##SDM## %s JiraHelper.access_%s there are no similar %ss.", execution_id, self.__grant_type, self.__grant_type)
+            self.__bot.log.error("##SDM## %s JiraHelper.access_%s there are no similar %ss.", execution_id,
+                                 self.__grant_type, self.__grant_type)
         else:
-            self.__bot.log.error("##SDM## %s JiraHelper.access_%s similar role found: %s", execution_id, self.__grant_type, str(similar_result))
+            self.__bot.log.error("##SDM## %s JiraHelper.access_%s similar role found: %s", execution_id,
+                                 self.__grant_type, str(similar_result))
             yield f"Did you mean \"{similar_result}\"?"
 
-    def __validate_issue(self, message, searched_name, flags):
+    def __validate_issue(self, flags):
         rv = False
 
         try:
-            m = search(r'(DCR-\d+|ENG-\d+|ISD-\d+)', flags["reason"])
-            issue_id = m.group(0) if m else None
-            issue = self.auth_jira.issue(issue_id)
+            auth_jira = Jira(self.ngt_jira, username=self.username, password=self.api_token)
+            issue_id = self.__get_ticket(flags)
             td = convert_duration_flag_to_timedelta(flags["duration"])
-            duration = td.seconds / 3600
-            if issue.fields.status.name != "Closed" and duration <= eight_hours:
-                email = self.__get_email(message)
-                time_str = get_formatted_duration_string(td)
-
-                issue.fields.labels.append("SDMBOT")
-                issue.update(fields={"labels": issue.fields.labels})
-                self.auth_jira.add_comment(issue_id, f"Strongdmbot auto-approved a grant for {email} access to {searched_name} for {time_str}")
+            duration = td.seconds / 60
+            if auth_jira.issue_exists(issue_id) and\
+               auth_jira.get_issue_status(issue_id) != "Closed" and\
+               duration <= eight_hours:
                 rv = True
             else:
                 self.__bot.log.info("##SDM## JiraHelper.access_%s will not grant automatic access.", self.__grant_type)
-        except JIRAError as j:
-            # Issue does not exist, just return false
+        except HTTPError as e:
+            # Bad Jira credentials
+            error_str = str(e)
             self.__bot.log.info("##SDM## JiraHelper.access_%s is not granting automatic access: %s", self.__grant_type,
-                                j.text)
+                                error_str)
+            pass
+        except KeyError:
+            # The required flags were not passed
             pass
 
         return rv
+
+    def __get_ticket(self, flags):
+        rv = None
+        try:
+            projects = self.__bot.config['JIRA_PROJECTS'].split(" ")
+            for project in projects:
+                regex = escape(project) + "-\d+"
+                m = search(regex, flags["reason"])
+                if m:
+                    rv = m.group(0)
+                    break
+        except KeyError:
+            pass
+        return rv
+
+    def __record_and_notify(self, message, searched_name, sdm_object, flags):
+        issue_id = self.__get_ticket(flags)
+        try:
+            auth_jira = Jira(self.ngt_jira, username=self.username, password=self.api_token)
+            td = convert_duration_flag_to_timedelta(flags["duration"])
+
+            email = self.__get_email(message)
+            nick = self.__get_nick(message)
+            time_str = get_formatted_duration_string(td)
+
+            field_name = "labels"
+            field_value = auth_jira.issue_field_value(issue_id, field_name)
+            field_value.append("SDMBOT")
+            auth_jira.update_issue_field(issue_id, {field_name: field_value})
+
+            approve_message = f"Strongdmbot auto-approved a grant giving {nick} ({email}) access to {searched_name} \
+for {time_str} ({issue_id})"
+            auth_jira.issue_add_comment(issue_id, approve_message)
+            yield from self.__notify_admins(approve_message, message, sdm_object)
+        except HTTPError as e:
+            # Bad Jira credentials
+            error_str = str(e)
+            self.__bot.log.error("##SDM## JiraHelper.access_%s is unable to update issue: %s", self.__grant_type,
+                                 error_str)
+        except KeyError:
+            # The required flags were not passed
+            self.__bot.log.error("##SDM## JiraHelper.access_%s is unable to update issue", self.__grant_type)
+
+    def __notify_admins(self, text, message, sdm_object):
+        approvers_channel_tag = self.__bot.config['APPROVERS_CHANNEL_TAG']
+        if approvers_channel_tag is not None and sdm_object.tags is not None:
+            approvers_channel = sdm_object.tags.get(approvers_channel_tag)
+            if approvers_channel is not None:
+                try:
+                    self.__bot.send(self.__bot.build_identifier(f'#{approvers_channel}'), text)
+                except Exception:
+                    yield "Sorry, I cannot contact the approvers for this resource, their channel is unreachable. " \
+                          "Please, contact your SDM Admin. "
+                return
+        admins_channel = self.__bot.config['ADMINS_CHANNEL']
+        if admins_channel:
+            self.__bot.send(self.__bot.build_identifier(admins_channel), text)
+            return
+        for admin_id in self.__admin_ids:
+            admin_id = self.__bot.get_rich_identifier(admin_id, message)
+            self.__bot.send(admin_id, text)
