@@ -9,8 +9,6 @@ from requests import HTTPError
 from ..exceptions import NotFoundException, PermissionDeniedException
 from ..util import fuzzy_match, get_formatted_duration_string, convert_duration_flag_to_timedelta
 
-eight_hours = 8 * 60
-
 
 class JiraHelper(ResourceGrantHelper):
     def __init__(self, bot):
@@ -20,7 +18,7 @@ class JiraHelper(ResourceGrantHelper):
         self.__grant_type = GrantRequestType.ACCESS_RESOURCE
         super().__init__(bot)
 
-        self.ngt_jira = "https://numerated.atlassian.net"
+        self.ngt_jira = getenv("JIRA_URL", "")
         self.username = getenv("JIRA_USERNAME", "")
         self.api_token = getenv("JIRA_API_TOKEN", "")
 
@@ -76,6 +74,8 @@ class JiraHelper(ResourceGrantHelper):
 
     def __validate_issue(self, flags):
         rv = False
+        md_td = convert_duration_flag_to_timedelta(self.__bot.config['JIRA_MAX_APPROVAL_DURATION'])
+        max_duration = md_td.seconds / 60
 
         try:
             auth_jira = Jira(self.ngt_jira, username=self.username, password=self.api_token)
@@ -84,7 +84,7 @@ class JiraHelper(ResourceGrantHelper):
             duration = td.seconds / 60
             if auth_jira.issue_exists(issue_id) and\
                auth_jira.get_issue_status(issue_id) != "Closed" and\
-               duration <= eight_hours:
+               duration <= max_duration:
                 rv = True
             else:
                 self.__bot.log.info("##SDM## JiraHelper.access_%s will not grant automatic access.", self.__grant_type)

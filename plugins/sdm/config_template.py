@@ -33,6 +33,7 @@ _INSTANCE = {
     'ALLOW_RESOURCE_ACCESS_REQUEST_RENEWAL':  str(os.getenv("SDM_ALLOW_RESOURCE_ACCESS_REQUEST_RENEWAL", "")).lower() == 'true',
     'ENABLE_BOT_STATE_HANDLING': str(os.getenv("SDM_ENABLE_BOT_STATE_HANDLING", "")).lower() == 'true',
     'JIRA_PROJECTS': str(os.getenv("SDM_JIRA_PROJECTS")),
+    'JIRA_MAX_APPROVAL_DURATION': str(os.getenv("SDM_JIRA_MAX_APPROVAL_DURATION", "8h")),
 }
 
 def get():
