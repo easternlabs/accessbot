@@ -10,7 +10,6 @@ from lib import ApproveHelper, create_sdm_service, MSTeamsPlatform, PollerHelper
     ShowResourcesHelper, ShowRolesHelper, SlackBoltPlatform, SlackRTMPlatform, \
     ResourceGrantHelper, RoleGrantHelper, DenyHelper, CommandAliasHelper, ArgumentsHelper, \
     GrantRequestHelper, WhoamiHelper, MetricsHelper, HealthCheckHelper, JiraHelper
-    JiraHelper
 from lib.util import normalize_utf8
 from grant_request_type import GrantRequestType
 
